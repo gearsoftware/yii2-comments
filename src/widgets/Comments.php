@@ -1,0 +1,95 @@
+<?php
+
+/**
+ * @package   Yii2-Comments
+ * @author    José Peña <joepa37@gmail.com>
+ * @link https://plus.google.com/+joepa37/
+ * @copyright Copyright (c) 2018 José Peña
+ * @license http://www.apache.org/licenses/LICENSE-2.0
+ * @version   1.0.0
+ */
+
+namespace gearsoftware\comments\widgets;
+
+use gearsoftware\comments\assets\CommentsAsset;
+use gearsoftware\comments\Comments as CommentModule;
+use gearsoftware\comments\Comments as CommentsModule;
+use gearsoftware\comments\components\CommentsHelper;
+use gearsoftware\comments\models\Comment;
+use gearsoftware\timeline\controllers\TimelineTrait;
+use Yii;
+use yii\base\Model;
+use yii\data\ActiveDataProvider;
+
+class Comments extends \yii\base\Widget
+{
+	use TimelineTrait;
+
+    public $model;
+    public $model_id = 0;
+
+    public function init()
+    {
+        parent::init();
+
+        if ($this->model instanceof Model) {
+            $this->model_id = $this->model->id;
+            $this->model = $this->model->tableName();
+        }
+    }
+
+    public function run()
+    {
+        $commentsAsset = CommentsAsset::register($this->getView());
+        CommentModule::getInstance()->commentsAssetUrl = $commentsAsset->baseUrl;
+
+        $model = $this->model;
+        $model_id = $this->model_id;
+
+        $comment = new Comment(compact('model', 'model_id'));
+        $comment->scenario = (Yii::$app->user->isGuest) ? Comment::SCENARIO_GUEST : Comment::SCENARIO_USER;
+
+        if ((!CommentModule::getInstance()->onlyRegistered || !Yii::$app->user->isGuest) && $comment->load(Yii::$app->getRequest()->post())) {
+
+            if ($comment->validate() && Yii::$app->getRequest()->validateCsrfToken()
+                && Yii::$app->getRequest()->getCsrfToken(true) && $comment->checkSpam() &&  $comment->save()
+            ) {
+                if (Yii::$app->user->isGuest) {
+                    CommentsHelper::setCookies([
+                        'username' => $comment->username,
+                        'email' => $comment->email,
+                    ]);
+                }
+
+	            $this->model_class = Comment::class;
+	            $this->model_class_id = $comment->id;
+	            $this->model_created_at = $comment->created_at;
+				$this->saveTimeline();
+
+                Yii::$app->getResponse()->redirect(Yii::$app->request->referrer);
+                return;
+            }
+        }
+
+        $dataProvider = new ActiveDataProvider([
+            'query' => Comment::find(true)->where([
+                'model' => $model,
+                'model_id' => $model_id,
+                'parent_id' => NULL,
+                'status' => Comment::STATUS_PUBLISHED,
+            ]),
+            'pagination' => [
+                'pageSize' => CommentsModule::getInstance()->commentsPerPage,
+                'pageParam' => 'comment-page',
+                'pageSizeParam' => 'comments-per-page',
+            ],
+            'sort' => [
+                'defaultOrder' => [
+                    'created_at' => CommentsModule::getInstance()->orderDirection,
+                ]
+            ],
+        ]);
+
+        return $this->render('comments', compact('model', 'model_id', 'comment', 'dataProvider'));
+    }
+}
