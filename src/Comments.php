@@ -27,6 +27,7 @@ class Comments extends \yii\base\Module
     const VERSION = '0.1.0';
 
     /**
+     * test
      * Path to default avatar image
      */
     const DEFAULT_AVATAR = '/images/user.png';
