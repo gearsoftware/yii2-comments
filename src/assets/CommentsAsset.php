@@ -18,7 +18,7 @@ use yii\web\View;
 
 class CommentsAsset extends AssetBundle
 {
-    public $sourcePath = '@vendor/gearsoftware/yii2-comments/assets/source';
+    public $sourcePath = '@vendor/gearsoftware/yii2-comments/src/assets/source';
     public $css = [
         'css/comments.css',
     ];
